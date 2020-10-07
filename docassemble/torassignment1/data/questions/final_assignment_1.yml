@@ -1,0 +1,297 @@
+# ASSIGNMENT 1
+# You will be implementing the Legal Aid Bureau's interview to determine
+# whether an applicant is eligible for legal aid. 
+# The total score that can be awarded for this assignment is 20.
+# The reference interview is found here:
+# https://guided.page/interview?i=docassemble.playground3%3Alab.yml#page1
+# Resources are found here:
+# https://lab.mlaw.gov.sg/legal-services/taking-the-means-test/
+# https://sso.agc.gov.sg/SL/LAAA1995-RG1#Sc1-
+---
+# MODIFY THIS BLOCK
+# Please fill in the relevant information.
+metadata:
+  title: |
+    Means Test Assessment under Legal Aid Bureau
+  short title: |
+    Means Test Assessment
+  description: |
+    This interview assesses an applicant's eligibility for legal aid, pursuant to First Schedule of Legal Aid and Advice Regulations
+  authors:
+    - name: Tor Ming En
+      organization: COR-LAW-2215 Digital Intelligence for Lawyers
+  revision_date: 2020-10-07
+---
+# DO NOT MODIFY THIS BLOCK. SCORE: 5
+# Implement a check_nric function in a module file called validation.py.
+# It should check for (1) correct format and (2) that it is a valid NRIC.
+# Use a regular expression to test for the correct format.
+# Implement the checksum algorithm to determine whether the NRIC is valid.
+# The NRIC checksum algorithm can be found on:
+# http://www.ngiam.net/NRIC/ or Wikipedia
+# Test your function using data from: https://samliew.com/nric-generator
+modules:
+  .validation
+---
+# DO NOT MODIFY THIS BLOCK
+# This is your objects block.
+# Individual is used for the applicant.
+# DAList is used for household_incomes.
+objects:
+  applicant: Individual
+  household_members: DAList.using(object_type=Individual, there_is_another=False)
+---
+# MODIFY THIS BLOCK (BUT DO NOT MOVE IT). SCORE: 5
+# Use this block to control the interview logic.
+# Include this line somewhere in your code: 
+#   household_members.append(applicant)
+# This line of code adds the applicant to the household_members DAList.
+# This ensures that the applicant appears in the household_members.table.
+mandatory: True
+code: |
+  if intro_screen:
+    if own_a_property:
+      if more_than_one_property:
+        ineligible_screen_more_than_one_property
+      if not reside_in_this_property:
+        ineligible_screen_residence_in_property
+      if value("annual_value_property") > 13000:
+        ineligible_screen_annual_value_exceeded
+    if applicant.age_in_years() < 60:
+      if value("total_savings") > 10000:
+        ineligible_screen_below_sixty
+    if applicant.age_in_years() >= 60:
+      if value("total_savings") > 40000:
+        ineligible_screen_sixty_and_above
+    household_members: [] # as a class constructor
+    if household_members.there_is_another is False:
+      household_members.append(applicant)
+---
+# DO NOT MODIFY THIS BLOCK OR MOVE IT
+mandatory: True
+code: |
+  if household_members.there_are_any:
+    review_household_members
+---
+# MODIFY THIS BLOCK (BUT DO NOT MOVE IT). SCORE: 5
+# Use this block to write code that calculates the average PCHI
+mandatory: True
+code: |
+  for member in household_members:
+    if household_members.number() != 0:
+      per_capital_household_income = int(sum(member.income for member in household_members)) / int(12 * household_members.number())
+      if per_capital_household_income > 950:
+        ineligible_screen_per_capita_income_exceeded
+      elif per_capital_household_income <= 950:
+        eligible_screen
+---
+# DO NOT MODIFY THIS BLOCK
+table: household_members.table
+rows: household_members
+columns: 
+  - Name: row_item
+  - Birthdate: row_item.birthdate
+  - Income: row_item.income
+edit:
+  - name.first
+---
+# DO NOT MODIFY THIS BLOCK
+question: | 
+  Please add all other household members.
+subquestion: |
+  A household member is any person residing with you and related by:
+  
+  1. blood
+  2. marriage; or
+  3. adoption.
+  
+  Press continue when you have added all household members.
+  
+  ${household_members.table}
+  ${household_members.add_action() }
+  
+field: review_household_members
+section: Family Information
+---
+# DO NOT MODIFY THIS BLOCK
+question: |
+  Information about your ${ordinal(i)} household member:
+fields:
+  - First Name: household_members[i].name.first
+  - Last Name: household_members[i].name.last
+  - Birthdate: household_members[i].birthdate
+    datatype: date
+  - "This person's total income in past 12 months": household_members[i].income
+    datatype: currency
+    min: 0
+    default: 0
+section: Family Information
+---
+features:
+  progress bar: True
+  navigation: horizontal 
+  #The progress and navigation bar seeks to improve user experience. By providing a clear path on the number of specific numbered steps left to completion, it sets users' expectation on how much time (which is also mentioned in Introduction page) and effort is required. It also shows the tasks completed and the user's current location within the process. This function would allow users to quickly comprehend the logical flow of the interview, and reduce user abandonment.
+---
+sections:
+  - Introduction
+  - Property Information
+  - Savings Information
+  - Personal Information
+  - Family Information
+  - Results
+---
+mandatory: True
+progress: 0
+field: intro_screen
+question: Welcome!
+subquestion: |
+  To qualify for Legal Aid Bureau's services, all applicants must pass its Means Test. Please take this short 3-5 minute quiz to find out if you are eligible for those services!
+---
+progress: 25
+section: Property Information
+question: |
+  Property Information
+fields: # To improve the user's experience, the algorithm ensures that users will only be asked relevant questions on property information, depending on their responses. Hence, if any of the user's response falls under a ground of ineligibility, they do not have to spend more time than required to answer other property-related questions.
+  - "Do you own any propery?": own_a_property
+    datatype: yesnoradio
+  - "Do you own more than one property?": more_than_one_property
+    show if: 
+      variable: own_a_property
+      is: True
+    datatype: yesnoradio
+  - "Do you currently reside in this property?": reside_in_this_property
+    show if:
+      variable: more_than_one_property
+      is: False
+    datatype: yesnoradio
+  - "What is the annual value of the residential property?": annual_value_property
+    show if:
+      variable: reside_in_this_property
+      is: True
+    datatype: currency
+    min: 0
+    currency symbol: $
+    help: | # Added to improve user experience by providing tidbit information on where one can find the property's annual value, as well as providing an expedient means for applicants to make an estimation based on the table provided in the Help★ section. This would preclude the need for them to change their tabs to search for an estimated annual value for their property.
+      Click the yellow "Help★" button at the top to estimate the annual value of your property based on the type of housing, OR key in the actual IRAS valuation from IRAS My-Tax-Portal.
+help: |
+    [FILE annualvalues.png, 100%] 
+    
+    Click "Back to Question" to return back to the interview.
+---
+progress: 50
+section: Savings Information
+question: |
+  Savings Information
+fields:
+  - "What is your date of birth?": applicant.birthdate
+    datatype: date
+  - "What is the total amount of your savings and non-CPF investments?": total_savings
+    datatype: currency
+    min: 0
+    currency symbol: $
+    help: | 
+      Excludes any investment using moneys withdrawn from CPF's account
+---
+progress: 75
+section: Personal Information
+question: |
+  Please enter your personal information below.
+fields:
+  - "First name": applicant.name.first
+    required: True
+  - "Last name": applicant.name.last
+    required: True
+  - "Your NRIC": applicant_nric
+    validate: check_applicant_nric
+  - "Your total income in the past 12 months": applicant.income
+    required: True
+    datatype: currency
+    min: 0
+    currency symbol: $
+  # did not include fields like birthdate (where user's response from "Savings Information" can be recycled for use again), as well as fields which are not relevant in determining eligibility (such as street address, postal code etc). This would help streamline the user experience so that they can input the most essential information to get an accurate assessment of their eligibility for legal aid.
+---
+progress: 100
+section: Results
+question: |
+  Sorry, you do not qualify for legal aid under the Legal Aid Bureau.
+subquestion: | # To improve user experience, applicants would be provided with specific reasons to detail why they are not eligible for legal aid. This ensures that applicants have a clearer understanding of the legal aid process under Legal Aid Bureau, while allowing the applicants to be more cognisant of these requirements (especially since many legal aid schemes share like requirements on income and property etc). Hence, applicants would not be left in a lurch when they then choose to decide their next course of action from other available options.
+  Under the Means Test, applicants must own only one property to qualify for assistance.
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: ineligible_screen_more_than_one_property
+---
+progress: 100
+section: Results
+question: |
+  Sorry, you do not qualify for legal aid under the Legal Aid Bureau.
+subquestion: |
+  Under the Means Test, applicants must use their only owned property as the place of residence in order to qualify for assistance.
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: ineligible_screen_residence_in_property
+---
+progress: 100
+section: Results
+question: |
+  Sorry, you do not qualify for legal aid under the Legal Aid Bureau.
+subquestion: |
+  Under the Means Test, the annual value of applicants' property must be $13,000 or lower in order to qualify for assistance.
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: ineligible_screen_annual_value_exceeded
+---
+progress: 100
+section: Results
+question: |
+  Sorry, you do not qualify for legal aid under the Legal Aid Bureau.
+subquestion: |
+  To qualify for assistance, applicants below the age of 60 (on the date of application) must have $10,000 or lower in savings and non-CPF investments.
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: ineligible_screen_below_sixty
+---
+progress: 100
+section: Results
+question: |
+  Sorry, you do not qualify for legal aid under the Legal Aid Bureau.
+subquestion: |
+  To qualify for assistance, applicants aged 60 and above (on the date of application) must have $40,000 or lower in savings and non-CPF investments.
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: ineligible_screen_sixty_and_above
+---
+progress: 100
+section: Results
+question: |
+  Sorry, you do not qualify for legal aid under the Legal Aid Bureau.
+subquestion: |
+  To qualify for assistance, the average per capita income of the applicant's household in the past 12 months must not exceed $950 per month.
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: ineligible_screen_per_capita_income_exceeded
+---
+progress: 100
+section: Results
+question: |
+  You are eligible for legal aid under the Legal Aid Bureau. 
+subquestion: |
+  Please proceed to click "Continue" to download the letter of eligibility.
+  
+  Before submitting the letter to Legal Aid Bureau (via e-mail or post), please remember to attach relevant supporting documents. This includes (1) documents relating to your property-related information, (2) documents which show your total amount of savings and non-CPF investments, and (3) payslips or forms which can assist in verifying your per capital monthly household income.
+attachment: # Taking into account Legal Bureau Aid's multi-staged process, by being able to generate a preliminary document to show that an applicant is deemed eligible under the Means Test (subject to corroboration with supporting materials), this can greatly help to expedite the process for applicants to seek legal aid. This is especially so given that lawyers at LAB now merely have to check the supporting documents against what is recorded thereunder in the letter of eligibility, hence ensuring that completion of the interview is a meaningful affair (rather than merely telling the applicant that they are "eligible" and stopping at that).
+  name: Your letter
+  filename: letter_of_eligibility
+  docx template file: Certificate_of_LAB_Eligibility.docx
+  valid formats:
+    pdf
+event: eligible_screen
+---
+# IMPLEMENT ALL YOUR QUESTION BLOCKS.
+# Implement all the question blocks correctly. Score 3
+# Improving the usability / user experience. Score 2
